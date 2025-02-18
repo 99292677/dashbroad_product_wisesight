@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Winback Analysis Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <!-- Animate.css for effects -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+  />
+  <!-- Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <!-- DataTables CSS -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css"
+  />
+  <style>
+    /* Global Styles */
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #f0f2f5, #ffffff);
+      color: #333;
+      transition: background 0.3s, color 0.3s;
+    }
+    /* Dark Mode */
+    .dark-mode {
+      background: #2c2f33;
+      color: #e0e0e0;
+    }
+    .dark-mode .card {
+      background-color: #424549;
+      color: #e0e0e0;
+    }
+    .dark-mode .table {
+      color: #e0e0e0;
+    }
+    /* Navigation Bar */
+    .navbar {
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    /* Container Card with Animation */
+    .container-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      margin-top: 20px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+    .container-card.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    /* Form Controls */
+    .form-select,
+    .form-control {
+      border-radius: 5px;
+      padding: 10px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+    .form-select:focus,
+    .form-control:focus {
+      border-color: #007bff;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+    label {
+      font-weight: 500;
+    }
+    /* Buttons */
+    .btn {
+      border-radius: 5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    /* Loader */
+    #loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Chart Container */
+    .chart-container {
+      margin-top: 30px;
+    }
+    .chart-container canvas {
+      height: 400px !important;
+    }
+    /* Extra Analysis Cards */
+    .extra-card {
+      margin-bottom: 30px;
+    }
+    .extra-card .card-header {
+      background-color: #007bff;
+      color: #fff;
+      font-weight: 500;
+    }
+    /* Service Metrics Selector */
+    #serviceMetricsContainer {
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- PapaParse -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <!-- DataTables JS -->
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+</head>
+<body>
+  <!-- Loader -->
+  <div id="loader">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">Winback Dashboard</a>
+      <div class="ms-auto">
+        <button id="toggleDarkMode" class="btn btn-outline-light me-2">Dark Mode</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container my-4">
+    <div class="container-card animate__animated" id="mainCard">
+      <!-- Filters Card -->
+      <div class="mb-4">
+        <div class="row g-3">
+          <!-- Team dropdown with "All" option -->
+          <div class="col-md-4">
+            <label for="teamSelect" class="form-label">Select Team:</label>
+            <select id="teamSelect" class="form-select">
+              <option value="">All</option>
+            </select>
+          </div>
+          <!-- Cluster dropdown with "All" option -->
+          <div class="col-md-4">
+            <label for="clusterSelect" class="form-label">Select Cluster:</label>
+            <select id="clusterSelect" class="form-select">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label for="metricSelect" class="form-label">Select Metric:</label>
+            <select id="metricSelect" class="form-select">
+              <option value="performance">Performance Metrics</option>
+              <option value="lost">Lost Clients</option>
+              <option value="service">Service &amp; Value Metrics</option>
+            </select>
+          </div>
+        </div>
+        <!-- Service Metrics Selector (เฉพาะเมื่อเลือก Service & Value Metrics) -->
+        <div id="serviceMetricsContainer">
+          <label class="form-label">Select Service Metrics:</label><br />
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricMonetaryValue" value="Monetary Value" checked>
+            <label class="form-check-label" for="metricMonetaryValue">Monetary Value</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricSubscriptionLength" value="Subscription Length" checked>
+            <label class="form-check-label" for="metricSubscriptionLength">Subscription Length</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricAVGMonth" value="AVG Month" checked>
+            <label class="form-check-label" for="metricAVGMonth">AVG Month</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricรายได้ต่อเดือน" value="รายได้/เดือน" checked>
+            <label class="form-check-label" for="metricรายได้ต่อเดือน">รายได้/เดือน</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricSaleVolume" value="Sale Volume" checked>
+            <label class="form-check-label" for="metricSaleVolume">Sale Volume</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input serviceMetricCheckbox" type="checkbox" id="metricSaleVolumeCount" value="Sale Volume Count" checked>
+            <label class="form-check-label" for="metricSaleVolumeCount">Sale Volume Count</label>
+          </div>
+        </div>
+        <!-- New row: Chart Type & Additional Plot Toggle -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="chartTypeSelect" class="form-label">Select Chart Type:</label>
+            <select id="chartTypeSelect" class="form-select">
+              <option value="bar" selected>Bar Chart</option>
+              <option value="line">Line Chart</option>
+              <option value="pie">Pie Chart</option>
+            </select>
+          </div>
+          <div class="col-md-4 d-flex align-items-center">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="toggleAdditionalPlot">
+              <label class="form-check-label" for="toggleAdditionalPlot">
+                Show Additional Plot (Averages)
+              </label>
+            </div>
+          </div>
+        </div>
+        <!-- Reset & Export Buttons -->
+        <div class="row mt-3">
+          <div class="col-md-6">
+            <button id="resetFilters" class="btn btn-secondary w-100">Reset Filters</button>
+          </div>
+          <div class="col-md-6">
+            <button id="exportChart" class="btn btn-success w-100">Export Chart as Image</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabbed Interface -->
+      <ul class="nav nav-tabs" id="dashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chartTab" type="button" role="tab" aria-controls="chartTab" aria-selected="true">
+            Chart View
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="data-tab" data-bs-toggle="tab" data-bs-target="#dataTab" type="button" role="tab" aria-controls="dataTab" aria-selected="false">
+            Data Table
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="extra-tab" data-bs-toggle="tab" data-bs-target="#extraTab" type="button" role="tab" aria-controls="extraTab" aria-selected="false">
+            Extra Analysis
+          </button>
+        </li>
+      </ul>
+      <div class="tab-content" id="dashboardTabsContent">
+        <!-- Chart View Tab -->
+        <div class="tab-pane fade show active p-3" id="chartTab" role="tabpanel" aria-labelledby="chart-tab">
+          <div class="chart-container">
+            <canvas id="chartCanvas"></canvas>
+          </div>
+          <!-- Secondary Chart Container -->
+          <div class="chart-container" id="additionalChartContainer" style="display: none;">
+            <canvas id="chartCanvas2"></canvas>
+          </div>
+        </div>
+        <!-- Data Table Tab -->
+        <div class="tab-pane fade p-3" id="dataTab" role="tabpanel" aria-labelledby="data-tab">
+          <div class="mb-3 text-end">
+            <button id="exportTable" class="btn btn-success">Export Table as CSV</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped" id="dataTable">
+              <thead class="table-dark">
+                <tr id="tableHeaders"></tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Extra Analysis Tab -->
+        <div class="tab-pane fade p-3" id="extraTab" role="tabpanel" aria-labelledby="extra-tab">
+          <div class="row">
+            <!-- Lost Type Distribution Card -->
+            <div class="col-md-6 extra-card">
+              <div class="card">
+                <div class="card-header">Lost Type Distribution</div>
+                <div class="card-body">
+                  <canvas id="extraChart1"></canvas>
+                </div>
+              </div>
+            </div>
+            <!-- Team Distribution Card -->
+            <div class="col-md-6 extra-card">
+              <div class="card">
+                <div class="card-header">Team Distribution</div>
+                <div class="card-body">
+                  <canvas id="extraChart2"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- เพิ่ม Plot ใหม่: Scatter Plot (Recency vs Frequency) -->
+          <div class="row">
+            <div class="col-md-12 extra-card">
+              <div class="card">
+                <div class="card-header">Recency vs Frequency</div>
+                <div class="card-body">
+                  <canvas id="extraChart3"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> <!-- End container-card -->
+  </div> <!-- End main container -->
+
+  <!-- Bootstrap Bundle with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    "use strict";
+    $(document).ready(() => {
+      let rawData = [];
+      let filteredData = [];
+      let chartInstance, chartInstance2;
+      let chartExtra1, chartExtra2, chartExtra3;
+      let dataTable;
+      const $loader = $("#loader");
+
+      // Initialize DataTable
+      function initDataTable() {
+        if ($.fn.DataTable.isDataTable("#dataTable")) {
+          $("#dataTable").DataTable().destroy();
+        }
+        dataTable = $("#dataTable").DataTable({
+          paging: true,
+          searching: true,
+          ordering: true,
+          info: true,
+          autoWidth: false,
+          responsive: true,
+        });
+      }
+
+      // Parse CSV with PapaParse
+      Papa.parse("Winback_Analysis_nonactiveClient.csv", {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function (results) {
+          rawData = results.data;
+          $loader.fadeOut(500);
+          populateTeamDropdown();
+          updateClusterDropdown();
+          applyFilters();
+          updateDataTable();
+          updateExtraAnalysis();
+          // Animate in the container card after data loads
+          $("#mainCard").addClass("show animate__fadeInUp");
+        },
+        error: function (error) {
+          console.error("Error parsing CSV:", error);
+          $loader.html('<div class="alert alert-danger">Failed to load data.</div>');
+        },
+      });
+
+      // Populate Team dropdown
+      function populateTeamDropdown() {
+        const teams = [...new Set(rawData.map(item => item.Team).filter(Boolean))];
+        const $teamSelect = $("#teamSelect").empty().append(new Option("All", ""));
+        teams.forEach(team => {
+          $teamSelect.append(new Option(team, team));
+        });
+      }
+
+      // Update Cluster dropdown
+      function updateClusterDropdown() {
+        const selectedTeam = $("#teamSelect").val();
+        let clusters;
+        if (selectedTeam === "") {
+          clusters = [...new Set(rawData.map(item => item.Cluster).filter(Boolean))];
+        } else {
+          clusters = [...new Set(rawData.filter(item => item.Team === selectedTeam).map(item => item.Cluster).filter(Boolean))];
+        }
+        const $clusterSelect = $("#clusterSelect").empty().append(new Option("All", ""));
+        clusters.forEach(cluster => {
+          $clusterSelect.append(new Option(cluster, cluster));
+        });
+      }
+
+      // Show/Hide Service Metrics Selector based on Metric selection
+      $("#metricSelect").on("change", function () {
+        if ($(this).val() === "service") {
+          $("#serviceMetricsContainer").slideDown();
+        } else {
+          $("#serviceMetricsContainer").slideUp();
+        }
+        applyFilters();
+      });
+
+      // When any service metric checkbox changes, update chart if current metric is service
+      $(".serviceMetricCheckbox").on("change", function () {
+        if ($("#metricSelect").val() === "service") {
+          updateChart();
+        }
+      });
+
+      // Apply filters
+      function applyFilters() {
+        const selectedTeam = $("#teamSelect").val();
+        const selectedCluster = $("#clusterSelect").val();
+        filteredData = rawData.filter(item => {
+          return (!selectedTeam || item.Team === selectedTeam) &&
+                 (!selectedCluster || item.Cluster === selectedCluster);
+        });
+        updateChart();
+        updateDataTable();
+        updateSecondaryChart();
+        updateExtraAnalysis();
+      }
+
+      // Update Primary Chart
+      function updateChart() {
+        const selectedMetric = $("#metricSelect").val();
+        const mainChartType = $("#chartTypeSelect").val();
+        let chartData = {};
+        if (selectedMetric === "performance") {
+          chartData = { "New Sales": 0, "Win Back": 0, "Recontract": 0 };
+          filteredData.forEach(item => {
+            chartData["New Sales"] += parseInt(item["New Sales"] || 0, 10);
+            chartData["Win Back"] += parseInt(item["Win Back"] || 0, 10);
+            chartData["Recontract"] += parseInt(item["Recontract"] || 0, 10);
+          });
+        } else if (selectedMetric === "lost") {
+          const lostClients = filteredData.reduce((count, item) => item["Lost Reason Criteria"] ? count + 1 : count, 0);
+          chartData["Lost Clients"] = lostClients;
+        } else if (selectedMetric === "service") {
+          // Get selected service metrics from checkboxes
+          let selectedServiceMetrics = [];
+          $(".serviceMetricCheckbox:checked").each(function () {
+            selectedServiceMetrics.push($(this).val());
+          });
+          // Fallback if none selected
+          if (selectedServiceMetrics.length === 0) {
+            selectedServiceMetrics = ["Monetary Value"];
+          }
+          // Aggregate only selected metrics
+          selectedServiceMetrics.forEach(metric => {
+            chartData[metric] = 0;
+          });
+          filteredData.forEach(item => {
+            selectedServiceMetrics.forEach(metric => {
+              chartData[metric] += parseFloat(item[metric] || 0);
+            });
+          });
+        }
+        const colors = [
+          "rgba(75, 192, 192, 0.6)",
+          "rgba(153, 102, 255, 0.6)",
+          "rgba(255, 159, 64, 0.6)",
+          "rgba(255, 99, 132, 0.6)",
+          "rgba(54, 162, 235, 0.6)",
+          "rgba(255, 206, 86, 0.6)"
+        ];
+        const borderColors = [
+          "rgba(75, 192, 192, 1)",
+          "rgba(153, 102, 255, 1)",
+          "rgba(255, 159, 64, 1)",
+          "rgba(255, 99, 132, 1)",
+          "rgba(54, 162, 235, 1)",
+          "rgba(255, 206, 86, 1)"
+        ];
+        const ctx = document.getElementById("chartCanvas").getContext("2d");
+        if (chartInstance) { chartInstance.destroy(); }
+        chartInstance = new Chart(ctx, {
+          type: mainChartType,
+          data: {
+            labels: Object.keys(chartData),
+            datasets: [{
+              label: selectedMetric === "performance" ? "Performance Metrics" : 
+                     selectedMetric === "lost" ? "Lost Clients" : "Service & Value Metrics",
+              data: Object.values(chartData),
+              backgroundColor: Object.keys(chartData).map((_, i) => colors[i % colors.length]),
+              borderColor: Object.keys(chartData).map((_, i) => borderColors[i % borderColors.length]),
+              borderWidth: 1,
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 800, easing: "easeOutQuart" },
+            scales: (mainChartType === "pie" || mainChartType === "doughnut") ? {} : { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            plugins: { tooltip: { enabled: true }, legend: { display: true, position: "top" } },
+          },
+        });
+      }
+
+      // Update Secondary Chart (Averages)
+      function updateSecondaryChart() {
+        if (!$("#toggleAdditionalPlot").is(":checked")) {
+          $("#additionalChartContainer").hide();
+          if (chartInstance2) { chartInstance2.destroy(); }
+          return;
+        }
+        $("#additionalChartContainer").show();
+        const getAverage = column => {
+          const values = filteredData.map(item => parseFloat(item[column]) || 0);
+          return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        };
+        const avgRecency = getAverage("Recency");
+        const avgFrequency = getAverage("Frequency");
+        const avgMonetary = getAverage("Monetary Value");
+        const data = {
+          labels: ["Recency", "Frequency", "Monetary Value"],
+          datasets: [{
+            label: "Average Metrics",
+            data: [avgRecency, avgFrequency, avgMonetary],
+            backgroundColor: [
+              "rgba(255, 99, 132, 0.6)",
+              "rgba(54, 162, 235, 0.6)",
+              "rgba(255, 206, 86, 0.6)",
+            ],
+            borderColor: [
+              "rgba(255, 99, 132, 1)",
+              "rgba(54, 162, 235, 1)",
+              "rgba(255, 206, 86, 1)",
+            ],
+            borderWidth: 1,
+          }],
+        };
+        const ctx2 = document.getElementById("chartCanvas2").getContext("2d");
+        if (chartInstance2) { chartInstance2.destroy(); }
+        chartInstance2 = new Chart(ctx2, {
+          type: "bar",
+          data: data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: { tooltip: { enabled: true }, legend: { display: true, position: "top" } },
+          },
+        });
+      }
+
+      // Update Extra Analysis Charts
+      function updateExtraAnalysis() {
+        // Extra Chart 1: Lost Type Distribution (Pie Chart)
+        let lostTypeCounts = {};
+        rawData.forEach(item => {
+          if (item["Lost Type"]) {
+            lostTypeCounts[item["Lost Type"]] = (lostTypeCounts[item["Lost Type"]] || 0) + 1;
+          }
+        });
+        const lostTypeLabels = Object.keys(lostTypeCounts);
+        const lostTypeData = Object.values(lostTypeCounts);
+        const extraCtx1 = document.getElementById("extraChart1").getContext("2d");
+        if (chartExtra1) { chartExtra1.destroy(); }
+        chartExtra1 = new Chart(extraCtx1, {
+          type: "pie",
+          data: {
+            labels: lostTypeLabels,
+            datasets: [{
+              data: lostTypeData,
+              backgroundColor: lostTypeLabels.map((_, i) => {
+                const colors = ["rgba(255, 99, 132, 0.6)", "rgba(54, 162, 235, 0.6)", "rgba(255, 206, 86, 0.6)", "rgba(75, 192, 192, 0.6)", "rgba(153, 102, 255, 0.6)", "rgba(255, 159, 64, 0.6)"];
+                return colors[i % colors.length];
+              }),
+              borderColor: lostTypeLabels.map((_, i) => {
+                const borderColors = ["rgba(255, 99, 132, 1)", "rgba(54, 162, 235, 1)", "rgba(255, 206, 86, 1)", "rgba(75, 192, 192, 1)", "rgba(153, 102, 255, 1)", "rgba(255, 159, 64, 1)"];
+                return borderColors[i % borderColors.length];
+              }),
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' },
+              title: { display: true, text: 'Lost Type Distribution' }
+            }
+          }
+        });
+
+        // Extra Chart 2: Team Distribution (Bar Chart)
+        let teamCounts = {};
+        rawData.forEach(item => {
+          if (item["Team"]) {
+            teamCounts[item["Team"]] = (teamCounts[item["Team"]] || 0) + 1;
+          }
+        });
+        const teamLabels = Object.keys(teamCounts);
+        const teamData = Object.values(teamCounts);
+        const extraCtx2 = document.getElementById("extraChart2").getContext("2d");
+        if (chartExtra2) { chartExtra2.destroy(); }
+        chartExtra2 = new Chart(extraCtx2, {
+          type: "bar",
+          data: {
+            labels: teamLabels,
+            datasets: [{
+              label: "Clients per Team",
+              data: teamData,
+              backgroundColor: teamLabels.map((_, i) => {
+                const colors = ["rgba(75, 192, 192, 0.6)", "rgba(153, 102, 255, 0.6)", "rgba(255, 159, 64, 0.6)", "rgba(255, 99, 132, 0.6)", "rgba(54, 162, 235, 0.6)", "rgba(255, 206, 86, 0.6)"];
+                return colors[i % colors.length];
+              }),
+              borderColor: teamLabels.map((_, i) => {
+                const borderColors = ["rgba(75, 192, 192, 1)", "rgba(153, 102, 255, 1)", "rgba(255, 159, 64, 1)", "rgba(255, 99, 132, 1)", "rgba(54, 162, 235, 1)", "rgba(255, 206, 86, 1)"];
+                return borderColors[i % borderColors.length];
+              }),
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: true, position: 'top' },
+              title: { display: true, text: 'Team Distribution' }
+            },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+
+        // Extra Chart 3: Recency vs Frequency (Scatter Plot)
+        let scatterData = [];
+        rawData.forEach(item => {
+          let recency = parseFloat(item["Recency"]);
+          let frequency = parseFloat(item["Frequency"]);
+          if (!isNaN(recency) && !isNaN(frequency)) {
+            scatterData.push({ x: recency, y: frequency });
+          }
+        });
+        const extraCtx3 = document.getElementById("extraChart3").getContext("2d");
+        if (chartExtra3) { chartExtra3.destroy(); }
+        chartExtra3 = new Chart(extraCtx3, {
+          type: "scatter",
+          data: {
+            datasets: [{
+              label: "Recency vs Frequency",
+              data: scatterData,
+              backgroundColor: "rgba(54, 162, 235, 0.6)",
+              borderColor: "rgba(54, 162, 235, 1)",
+              pointRadius: 5
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: "top" },
+              title: { display: true, text: "Recency vs Frequency Scatter Plot" }
+            },
+            scales: {
+              x: {
+                title: { display: true, text: "Recency" }
+              },
+              y: {
+                title: { display: true, text: "Frequency" },
+                beginAtZero: true
+              }
+            }
+          }
+        });
+      }
+
+      // Update Data Table
+      function updateDataTable() {
+        const tableHeaders = Object.keys(rawData[0] || {});
+        $("#tableHeaders")
+          .empty()
+          .append(tableHeaders.map(header => `<th>${header}</th>`).join(""));
+        $("#tableBody").empty();
+        filteredData.forEach(row => {
+          const rowHtml = tableHeaders.map(header => `<td>${row[header] || ""}</td>`).join("");
+          $("#tableBody").append(`<tr>${rowHtml}</tr>`);
+        });
+        initDataTable();
+      }
+
+      // Reset Filters
+      $("#resetFilters").on("click", () => {
+        $("#teamSelect").prop("selectedIndex", 0);
+        updateClusterDropdown();
+        $("#clusterSelect").prop("selectedIndex", 0);
+        $("#metricSelect").prop("selectedIndex", 0);
+        $("#chartTypeSelect").prop("selectedIndex", 0);
+        $("#toggleAdditionalPlot").prop("checked", false);
+        $("#serviceMetricsContainer").slideUp();
+        applyFilters();
+      });
+
+      // Export Chart as Image
+      $("#exportChart").on("click", () => {
+        const link = document.createElement("a");
+        link.href = chartInstance.toBase64Image();
+        link.download = "chart.png";
+        link.click();
+      });
+
+      // Export Data Table as CSV
+      $("#exportTable").on("click", () => {
+        let csvContent = "";
+        const headers = [];
+        $("#tableHeaders th").each(function () {
+          headers.push($(this).text().trim());
+        });
+        csvContent += headers.join(",") + "\n";
+        $("#tableBody tr").each(function () {
+          const row = [];
+          $(this).find("td").each(function () {
+            row.push('"' + $(this).text().trim().replace(/"/g, '""') + '"');
+          });
+          csvContent += row.join(",") + "\n";
+        });
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "data_table.csv");
+        link.click();
+      });
+
+      // Event Listeners
+      $("#teamSelect").on("change", () => { updateClusterDropdown(); applyFilters(); });
+      $("#clusterSelect, #metricSelect").on("change", () => { applyFilters(); });
+      $("#chartTypeSelect").on("change", () => { updateChart(); });
+      $("#toggleAdditionalPlot").on("change", () => { updateSecondaryChart(); });
+      $("#toggleDarkMode").on("click", function () {
+        $("body").toggleClass("dark-mode");
+      });
+    });
+  </script>
+</body>
+</html>
